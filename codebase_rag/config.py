@@ -10,12 +10,16 @@ from prompt_toolkit.styles import Style
 load_dotenv()
 
 
-def detect_provider_from_model(model_name: str) -> Literal["gemini", "openai", "local"]:
+def detect_provider_from_model(model_name: str) -> Literal["azure", "openai", "vllm", "deepseek", "local"]:
     """Detect the provider based on model name patterns."""
-    if model_name.startswith("gemini-"):
-        return "gemini"
+    if model_name.startswith("azure-"):
+        return "azure"
     elif model_name.startswith("gpt-") or model_name.startswith("o1-"):
         return "openai"
+    elif model_name.startswith("vllm-"):
+        return "vllm"
+    elif model_name.startswith("deepseek-"):
+        return "deepseek"
     else:
         return "local"
 
@@ -37,23 +41,32 @@ class AppConfig(BaseSettings):
     MEMGRAPH_HTTP_PORT: int = 7444
     LAB_PORT: int = 3000
 
-    GEMINI_PROVIDER: Literal["gla", "vertex"] = "gla"
+    # Azure OpenAI Configuration
+    AZURE_OPENAI_API_KEY: str | None = None
+    AZURE_OPENAI_ENDPOINT: str | None = None
+    AZURE_OPENAI_API_VERSION: str = "2024-02-01"
+    AZURE_ORCHESTRATOR_DEPLOYMENT: str = "gpt-4o-mini"
+    AZURE_CYPHER_DEPLOYMENT: str = "gpt-35-turbo"
 
-    GEMINI_MODEL_ID: str = "gemini-2.5-pro"  # DO NOT CHANGE THIS
-    GEMINI_VISION_MODEL_ID: str = "gemini-2.5-flash"  # DO NOT CHANGE THIS
-    MODEL_CYPHER_ID: str = "gemini-2.5-flash-lite-preview-06-17"  # DO NOT CHANGE THIS
-    GEMINI_API_KEY: str | None = None
-    GEMINI_THINKING_BUDGET: int | None = None
+    # vLLM Configuration
+    VLLM_ENDPOINT: AnyHttpUrl = AnyHttpUrl("http://localhost:8000/v1")
+    VLLM_ORCHESTRATOR_MODEL_ID: str = "meta-llama/Llama-3.1-8B-Instruct"
+    VLLM_CYPHER_MODEL_ID: str = "meta-llama/Llama-3.1-8B-Instruct"
+    VLLM_API_KEY: str = "vllm"
 
-    GCP_PROJECT_ID: str | None = None
-    GCP_REGION: str = "us-central1"
-    GCP_SERVICE_ACCOUNT_FILE: str | None = None
+    # DeepSeek Configuration
+    DEEPSEEK_API_KEY: str | None = None
+    DEEPSEEK_ENDPOINT: AnyHttpUrl = AnyHttpUrl("https://api.deepseek.com/v1")
+    DEEPSEEK_ORCHESTRATOR_MODEL_ID: str = "deepseek-chat"
+    DEEPSEEK_CYPHER_MODEL_ID: str = "deepseek-chat"
 
+    # Local Model Configuration (Ollama)
     LOCAL_MODEL_ENDPOINT: AnyHttpUrl = AnyHttpUrl("http://localhost:11434/v1")
     LOCAL_ORCHESTRATOR_MODEL_ID: str = "llama3"
     LOCAL_CYPHER_MODEL_ID: str = "llama3"
     LOCAL_MODEL_API_KEY: str = "ollama"
 
+    # OpenAI Configuration
     OPENAI_API_KEY: str | None = None
     OPENAI_ORCHESTRATOR_MODEL_ID: str = "gpt-4o-mini"
     OPENAI_CYPHER_MODEL_ID: str = "gpt-4o-mini"
@@ -76,14 +89,14 @@ class AppConfig(BaseSettings):
         # Check required API keys for each provider being used
         providers_in_use = {orchestrator_provider, cypher_provider}
 
-        if "gemini" in providers_in_use:
-            if self.GEMINI_PROVIDER == "gla" and not self.GEMINI_API_KEY:
+        if "azure" in providers_in_use:
+            if not self.AZURE_OPENAI_API_KEY:
                 raise ValueError(
-                    "Configuration Error: GEMINI_API_KEY is required when using Gemini models with 'gla' provider."
+                    "Configuration Error: AZURE_OPENAI_API_KEY is required when using Azure OpenAI models."
                 )
-            if self.GEMINI_PROVIDER == "vertex" and not self.GCP_PROJECT_ID:
+            if not self.AZURE_OPENAI_ENDPOINT:
                 raise ValueError(
-                    "Configuration Error: GCP_PROJECT_ID is required when using Gemini models with 'vertex' provider."
+                    "Configuration Error: AZURE_OPENAI_ENDPOINT is required when using Azure OpenAI models."
                 )
 
         if "openai" in providers_in_use:
@@ -91,6 +104,17 @@ class AppConfig(BaseSettings):
                 raise ValueError(
                     "Configuration Error: OPENAI_API_KEY is required when using OpenAI models."
                 )
+        
+        if "vllm" in providers_in_use:
+            # vLLM typically doesn't require API key validation
+            pass
+
+        if "deepseek" in providers_in_use:
+            if not self.DEEPSEEK_API_KEY:
+                raise ValueError(
+                    "Configuration Error: DEEPSEEK_API_KEY is required when using DeepSeek models."
+                )
+
         return
 
     @property
@@ -98,16 +122,16 @@ class AppConfig(BaseSettings):
         """Determines the active orchestrator model ID."""
         if self._active_orchestrator_model:
             return self._active_orchestrator_model
-        # Default fallback to Gemini
-        return self.GEMINI_MODEL_ID
+        # Default fallback to Azure OpenAI
+        return f"azure-{self.AZURE_ORCHESTRATOR_DEPLOYMENT}"
 
     @property
     def active_cypher_model(self) -> str:
         """Determines the active cypher model ID."""
         if self._active_cypher_model:
             return self._active_cypher_model
-        # Default fallback to Gemini
-        return self.MODEL_CYPHER_ID
+        # Default fallback to Azure OpenAI
+        return f"azure-{self.AZURE_CYPHER_DEPLOYMENT}"
 
     def set_orchestrator_model(self, model: str) -> None:
         """Set the active orchestrator model."""

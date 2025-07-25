@@ -4,62 +4,74 @@ import uuid
 from pathlib import Path
 from typing import Annotated
 
-from google import genai
-from google.genai import types
-from google.genai.errors import ClientError
 from langchain_core.tools import tool
+from langchain_openai import AzureChatOpenAI, ChatOpenAI
 from loguru import logger
 
 from ..config import detect_provider_from_model, settings
 
 
-class _NotSupportedClient:
-    """Placeholder client that raises NotImplementedError for unsupported providers."""
-
-    def __getattr__(self, name: str) -> None:
-        raise NotImplementedError(
-            "DocumentAnalyzer does not support the 'local' LLM provider."
-        )
-
-
 class DocumentAnalyzer:
     """
-    A tool to perform multimodal analysis on documents like PDFs
-    by making a direct call to the Gemini API.
+    A tool to perform document analysis.
+    Note: Multimodal analysis has been temporarily disabled in this version.
     """
 
     def __init__(self, project_root: str) -> None:
         self.project_root = Path(project_root).resolve()
-
+        
         # Initialize client based on the orchestrator model's provider
-        # Note: Document analysis uses the orchestrator model since it's the main reasoning model
         orchestrator_model = settings.active_orchestrator_model
         orchestrator_provider = detect_provider_from_model(orchestrator_model)
 
-        if orchestrator_provider == "gemini":
-            if settings.GEMINI_PROVIDER == "gla":
-                self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
-            else:  # vertex provider
-                # For Vertex AI, use service account authentication
-                self.client = genai.Client(
-                    project=settings.GCP_PROJECT_ID,
-                    location=settings.GCP_REGION,
-                    credentials_path=settings.GCP_SERVICE_ACCOUNT_FILE,
+        if orchestrator_provider == "azure":
+            try:
+                deployment_name = orchestrator_model.replace("azure-", "")
+                self.client = AzureChatOpenAI(
+                    azure_deployment=deployment_name,
+                    azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                    api_key=settings.AZURE_OPENAI_API_KEY,
+                    api_version=settings.AZURE_OPENAI_API_VERSION,
+                    temperature=0.3,
                 )
+                self.supports_vision = deployment_name in ["gpt-4o", "gpt-4o-mini", "gpt-4-vision-preview"]
+            except Exception as e:
+                logger.warning(f"Failed to initialize Azure OpenAI client: {e}")
+                self.client = None
+                self.supports_vision = False
+        elif orchestrator_provider == "openai":
+            try:
+                self.client = ChatOpenAI(
+                    model=orchestrator_model,
+                    api_key=settings.OPENAI_API_KEY,
+                    temperature=0.3,
+                )
+                self.supports_vision = orchestrator_model in ["gpt-4o", "gpt-4o-mini", "gpt-4-vision-preview"]
+            except Exception as e:
+                logger.warning(f"Failed to initialize OpenAI client: {e}")
+                self.client = None
+                self.supports_vision = False
         else:
-            # Non-Gemini providers are not supported for document analysis yet.
-            self.client = _NotSupportedClient()
+            # Other providers (vLLM, local) don't support document analysis yet
+            logger.warning(f"Document analysis not supported for provider: {orchestrator_provider}")
+            self.client = None
+            self.supports_vision = False
 
         logger.info(f"DocumentAnalyzer initialized with root: {self.project_root}")
 
     def analyze(self, file_path: str, question: str) -> str:
         """
-        Reads a document (e.g., PDF), sends it to the Gemini multimodal endpoint
-        with a specific question, and returns the model's analysis.
+        Analyzes a document with a specific question.
+        Note: Currently supports only text-based analysis. 
+        Vision capabilities are planned for future releases.
         """
         logger.info(
             f"[DocumentAnalyzer] Analyzing '{file_path}' with question: '{question}'"
         )
+        
+        if not self.client:
+            return "Error: Document analysis is not available for the current LLM provider configuration."
+        
         try:
             # Handle absolute paths by copying to .tmp folder
             if Path(file_path).is_absolute():
@@ -84,43 +96,29 @@ class DocumentAnalyzer:
             if not full_path.is_file():
                 return f"Error: File not found at '{file_path}'."
 
-            # Determine mime type dynamically
-            mime_type, _ = mimetypes.guess_type(full_path)
-            if not mime_type:
-                mime_type = (
-                    "application/octet-stream"  # Default if type can't be guessed
-                )
-
-            # Prepare the multimodal prompt
-            file_bytes = full_path.read_bytes()
-
-            # Use the simpler format that the library expects
-            prompt_parts = [
-                types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
-                f"Based on the document provided, please answer the following question: {question}",
-            ]
-
-            # Call the model and get the response
-            response = self.client.models.generate_content(
-                model=settings.GEMINI_MODEL_ID, contents=prompt_parts
-            )
-
-            logger.success(f"Successfully received analysis for '{file_path}'.")
-
-            # Check if response has text content
-            if hasattr(response, "text") and response.text:
-                return str(response.text)
-            elif hasattr(response, "candidates") and response.candidates:
-                # Try to get text from candidates
-                for candidate in response.candidates:
-                    if hasattr(candidate, "content") and candidate.content:
-                        parts = candidate.content.parts
-                        if parts and hasattr(parts[0], "text"):
-                            return str(parts[0].text)
-                return "No valid text found in response candidates."
-            else:
-                logger.warning(f"No text found in response: {response}")
-                return "No text content received from the API."
+            # For now, we'll do simple text-based analysis
+            # Full vision capabilities will be added in future releases
+            try:
+                # Try to read as text file first
+                content = full_path.read_text(encoding='utf-8')
+                
+                # Create a simple prompt for text analysis
+                from langchain_core.messages import HumanMessage, SystemMessage
+                
+                system_prompt = "You are a helpful assistant that analyzes documents and answers questions about their content."
+                user_prompt = f"Document content:\n\n{content[:10000]}...\n\nQuestion: {question}\n\nPlease provide a detailed answer based on the document content."
+                
+                messages = [
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=user_prompt)
+                ]
+                
+                response = self.client.invoke(messages)
+                return response.content
+                
+            except UnicodeDecodeError:
+                # If it's not a text file, return limitation message
+                return f"Error: Currently only text-based document analysis is supported. Binary files like PDFs require vision capabilities that will be added in future releases."
 
         except ValueError as e:
             # Check if this is a security-related ValueError (from relative_to)
@@ -132,11 +130,10 @@ class DocumentAnalyzer:
                 # API-related ValueError
                 logger.error(f"[DocumentAnalyzer] API validation error: {e}")
                 return f"Error: API validation failed: {e}"
-        except ClientError as e:
-            # Handle Google GenAI specific errors
-            logger.error(f"Google GenAI API error for '{file_path}': {e}")
-            if "Unable to process input image" in str(e):
-                return "Error: Unable to process the image file. The image may be corrupted or in an unsupported format."
+        except Exception as e:
+            # Handle general errors
+            logger.error(f"Document analysis error for '{file_path}': {e}")
+            return f"Error: Failed to analyze document: {e}"
             return f"API error: {e}"
         except Exception as e:
             logger.error(

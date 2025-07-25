@@ -43,7 +43,7 @@ Use the Makefile for:
 - **🌳 Tree-sitter Parsing**: Uses Tree-sitter for robust, language-agnostic AST parsing
 - **📊 Knowledge Graph Storage**: Uses Memgraph to store codebase structure as an interconnected graph
 - **🗣️ Natural Language Querying**: Ask questions about your codebase in plain English
-- **🤖 AI-Powered Cypher Generation**: Supports both cloud models (Google Gemini), local models (Ollama), and OpenAI models for natural language to Cypher translation
+- **🤖 AI-Powered Cypher Generation**: Supports Azure OpenAI, OpenAI, DeepSeek, vLLM (local models), and Ollama for natural language to Cypher translation
 - **🤖 OpenAI Integration**: Leverage OpenAI models to enhance AI functionalities.
 - **📝 Code Snippet Retrieval**: Retrieves actual source code snippets for found functions/methods
 - **✍️ Advanced File Editing**: Surgical code replacement with AST-based function targeting, visual diff previews, and exact code block modifications
@@ -66,7 +66,9 @@ The system consists of two main components:
 
 - Python 3.12+
 - Docker & Docker Compose (for Memgraph)
-- **For cloud models**: Google Gemini API key
+- **For Azure OpenAI**: Azure OpenAI API key and endpoint
+- **For DeepSeek**: DeepSeek API key
+- **For vLLM**: Local vLLM server running
 - **For local models**: Ollama installed and running
 - `uv` package manager
 
@@ -107,21 +109,55 @@ cp .env.example .env
 
 ### Configuration Options
 
-#### Option 1: Cloud Models (Gemini)
+#### Option 1: Azure OpenAI
 
 ```bash
 # .env file
-GEMINI_API_KEY=your_gemini_api_key_here
+AZURE_OPENAI_API_KEY=your_azure_openai_api_key_here
+AZURE_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com/
+AZURE_OPENAI_API_VERSION=2024-02-01
+AZURE_ORCHESTRATOR_DEPLOYMENT=gpt-4o-mini
+AZURE_CYPHER_DEPLOYMENT=gpt-35-turbo
 ```
-Get your free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 
-#### Option 2: OpenAI Models
+#### Option 2: DeepSeek
+
+```bash
+# .env file
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+DEEPSEEK_ENDPOINT=https://api.deepseek.com/v1
+DEEPSEEK_ORCHESTRATOR_MODEL_ID=deepseek-chat
+DEEPSEEK_CYPHER_MODEL_ID=deepseek-chat
+```
+
+#### Option 3: vLLM Server
+
+```bash
+# .env file
+VLLM_ENDPOINT=http://localhost:8000/v1
+VLLM_ORCHESTRATOR_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct
+VLLM_CYPHER_MODEL_ID=meta-llama/Llama-3.1-8B-Instruct
+VLLM_API_KEY=vllm
+```
+
+**Install and run vLLM**:
+```bash
+# Install vLLM
+pip install vllm
+
+# Start vLLM server with a model
+vllm serve meta-llama/Llama-3.1-8B-Instruct --port 8000 --api-key vllm
+
+# vLLM will serve on localhost:8000
+```
+
+#### Option 4: OpenAI
 ```bash
 # .env file
 OPENAI_API_KEY=your_openai_api_key_here
 ```
 
-#### Option 3: Local Models (Ollama)
+#### Option 5: Local Models (Ollama)
 ```bash
 # .env file
 LOCAL_MODEL_ENDPOINT=http://localhost:11434/v1
@@ -145,7 +181,7 @@ ollama pull llama3
 # Ollama will automatically start serving on localhost:11434
 ```
 
-> **Note**: Local models provide privacy and no API costs, but may have lower accuracy compared to cloud models like Gemini.
+> **Note**: Local models provide privacy and no API costs, but may have lower accuracy compared to cloud models like Azure OpenAI.
 
 4. **Start Memgraph database**:
 ```bash
@@ -193,10 +229,15 @@ python -m codebase_rag.main start --repo-path /path/to/your/repo \
   --orchestrator-model llama3.1 \
   --cypher-model codellama
 
-# Use specific Gemini models
+# Use specific Azure OpenAI models
 python -m codebase_rag.main start --repo-path /path/to/your/repo \
-  --orchestrator-model gemini-2.0-flash-thinking-exp-01-21 \
-  --cypher-model gemini-2.5-flash-lite-preview-06-17
+  --orchestrator-model azure-gpt-4o-mini \
+  --cypher-model azure-gpt-35-turbo
+
+# Use specific vLLM models
+python -m codebase_rag.main start --repo-path /path/to/your/repo \
+  --orchestrator-model vllm-meta-llama/Llama-3.1-8B-Instruct \
+  --cypher-model vllm-meta-llama/Llama-3.1-8B-Instruct
 ```
 
 Example queries (works across all supported languages):
@@ -280,7 +321,7 @@ python -m codebase_rag.main optimize python \
 ```bash
 python -m codebase_rag.main optimize javascript \
   --repo-path /path/to/frontend \
-  --orchestrator-model gemini-2.0-flash-thinking-exp-01-21
+  --orchestrator-model azure-gpt-4o-mini
 ```
 
 **Supported Languages for Optimization:**
@@ -376,10 +417,21 @@ The knowledge graph uses the following node types and relationships:
 
 Configuration is managed through environment variables in `.env` file:
 
-### Gemini (Cloud) Configuration
-- `GEMINI_API_KEY`: Required when  using Google models.
-- `GEMINI_MODEL_ID`: Main model for orchestration (default: `gemini-2.5-pro`)
-- `MODEL_CYPHER_ID`: Model for Cypher generation (default: `gemini-2.5-flash-lite-preview-06-17`)
+### Azure OpenAI Configuration
+- `AZURE_OPENAI_API_KEY`: Required when using Azure OpenAI models.
+- `AZURE_OPENAI_ENDPOINT`: Your Azure OpenAI resource endpoint
+- `AZURE_OPENAI_API_VERSION`: API version (default: `2024-02-01`)
+- `AZURE_ORCHESTRATOR_DEPLOYMENT`: Deployment name for orchestration (default: `gpt-4o-mini`)
+- `AZURE_CYPHER_DEPLOYMENT`: Deployment name for Cypher generation (default: `gpt-35-turbo`)
+
+### vLLM Configuration
+- `VLLM_ENDPOINT`: vLLM server endpoint (default: `http://localhost:8000/v1`)
+- `VLLM_ORCHESTRATOR_MODEL_ID`: Model for main RAG orchestration (default: `meta-llama/Llama-3.1-8B-Instruct`)
+- `VLLM_CYPHER_MODEL_ID`: Model for Cypher query generation (default: `meta-llama/Llama-3.1-8B-Instruct`)
+- `VLLM_API_KEY`: API key for vLLM server (default: `vllm`)
+
+### OpenAI Configuration
+- `OPENAI_API_KEY`: Required when using OpenAI models.
 
 ### Local Models Configuration
 - `LOCAL_MODEL_ENDPOINT`: Ollama endpoint (default: `http://localhost:11434/v1`)
