@@ -1,8 +1,9 @@
 import os
 from pathlib import Path
+from typing import Annotated
 
+from langchain_core.tools import tool
 from loguru import logger
-from pydantic_ai import Tool
 
 
 class DirectoryLister:
@@ -52,8 +53,12 @@ class DirectoryLister:
         return safe_path
 
 
-def create_directory_lister_tool(directory_lister: DirectoryLister) -> Tool:
-    return Tool(
-        function=directory_lister.list_directory_contents,
-        description="Lists the contents of a directory to explore the codebase.",
-    )
+def create_directory_lister_tool(directory_lister: DirectoryLister):
+    @tool
+    def list_directory_contents(
+        directory_path: Annotated[str, "Path to the directory to list"]
+    ) -> str:
+        """Lists the contents of a directory to explore the codebase."""
+        return directory_lister.list_directory_contents(directory_path)
+    
+    return list_directory_contents

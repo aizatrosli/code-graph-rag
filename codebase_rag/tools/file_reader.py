@@ -1,8 +1,9 @@
 from pathlib import Path
+from typing import Annotated
 
+from langchain_core.tools import tool
 from loguru import logger
 from pydantic import BaseModel
-from pydantic_ai import Tool
 
 
 class FileReadResult(BaseModel):
@@ -72,10 +73,13 @@ class FileReader:
             )
 
 
-def create_file_reader_tool(file_reader: FileReader) -> Tool:
+def create_file_reader_tool(file_reader: FileReader):
     """Factory function to create the file reader tool."""
 
-    async def read_file_content(file_path: str) -> str:
+    @tool
+    async def read_file_content(
+        file_path: Annotated[str, "Path to the text-based file to read"]
+    ) -> str:
         """
         Reads the content of a specified text-based file (e.g., source code, README.md, config files).
         This tool should NOT be used for binary files like PDFs or images. For those, use the 'analyze_document' tool.
@@ -85,7 +89,4 @@ def create_file_reader_tool(file_reader: FileReader) -> Tool:
             return f"Error: {result.error_message}"
         return result.content or ""
 
-    return Tool(
-        function=read_file_content,
-        description="Reads the content of text-based files. For documents like PDFs or images, use the 'analyze_document' tool instead.",
-    )
+    return read_file_content

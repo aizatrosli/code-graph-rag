@@ -4,10 +4,10 @@ import time
 from collections.abc import Awaitable, Callable
 from functools import wraps
 from pathlib import Path
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
+from langchain_core.tools import tool
 from loguru import logger
-from pydantic_ai import Tool
 
 from ..schemas import ShellCommandResult
 
@@ -197,11 +197,13 @@ class ShellCommander:
             return ShellCommandResult(return_code=-1, stdout="", stderr=str(e))
 
 
-def create_shell_command_tool(shell_commander: ShellCommander) -> Tool:
+def create_shell_command_tool(shell_commander: ShellCommander):
     """Factory function to create the shell command tool."""
 
+    @tool
     async def run_shell_command(
-        command: str, user_confirmed: bool = False
+        command: Annotated[str, "The shell command to execute"],
+        user_confirmed: Annotated[bool, "Set to True if user has explicitly confirmed this command"] = False
     ) -> ShellCommandResult:
         """
         Executes a shell command from the approved allowlist only.
@@ -237,8 +239,4 @@ def create_shell_command_tool(shell_commander: ShellCommander) -> Tool:
             await shell_commander.execute(command, confirmed=user_confirmed),
         )
 
-    return Tool(
-        function=run_shell_command,
-        name="execute_shell_command",
-        description="Executes shell commands from allowlist. For dangerous commands, call twice: first to check if confirmation needed, then with user_confirmed=True after getting approval.",
-    )
+    return run_shell_command

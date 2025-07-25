@@ -2,12 +2,13 @@ import mimetypes
 import shutil
 import uuid
 from pathlib import Path
+from typing import Annotated
 
 from google import genai
 from google.genai import types
 from google.genai.errors import ClientError
+from langchain_core.tools import tool
 from loguru import logger
-from pydantic_ai import Tool
 
 from ..config import detect_provider_from_model, settings
 
@@ -144,10 +145,14 @@ class DocumentAnalyzer:
             return f"An error occurred during analysis: {e}"
 
 
-def create_document_analyzer_tool(analyzer: DocumentAnalyzer) -> Tool:
+def create_document_analyzer_tool(analyzer: DocumentAnalyzer):
     """Factory function to create the document analyzer tool."""
 
-    def analyze_document(file_path: str, question: str) -> str:
+    @tool
+    def analyze_document(
+        file_path: Annotated[str, "The path to the document file (e.g., 'path/to/book.pdf')"],
+        question: Annotated[str, "The specific question to ask about the document's content"]
+    ) -> str:
         """
         Analyzes a document (like a PDF) to answer a specific question about its content.
         Use this tool when a user asks a question that requires understanding the content of a non-source-code file.
@@ -170,8 +175,4 @@ def create_document_analyzer_tool(analyzer: DocumentAnalyzer) -> Tool:
                 return str(e)
             return f"Error during document analysis: {e}"
 
-    return Tool(
-        function=analyze_document,
-        name="analyze_document",
-        description="Analyzes documents (PDFs, images) to answer questions about their content.",
-    )
+    return analyze_document

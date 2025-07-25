@@ -1,8 +1,9 @@
 from pathlib import Path
+from typing import Annotated
 
+from langchain_core.tools import tool
 from loguru import logger
 from pydantic import BaseModel
-from pydantic_ai import Tool
 
 
 class FileCreationResult(BaseModel):
@@ -50,10 +51,14 @@ class FileWriter:
             )
 
 
-def create_file_writer_tool(file_writer: FileWriter) -> Tool:
+def create_file_writer_tool(file_writer: FileWriter):
     """Factory function to create the file writer tool."""
 
-    async def create_new_file(file_path: str, content: str) -> FileCreationResult:
+    @tool
+    async def create_new_file(
+        file_path: Annotated[str, "Path where the new file should be created"],
+        content: Annotated[str, "Content to write to the new file"]
+    ) -> FileCreationResult:
         """
         Creates a new file with the specified content.
 
@@ -67,7 +72,4 @@ def create_file_writer_tool(file_writer: FileWriter) -> Tool:
         """
         return await file_writer.create_file(file_path, content)
 
-    return Tool(
-        function=create_new_file,
-        description="Creates a new file with content. IMPORTANT: Check file existence first! Overwrites completely WITHOUT showing diff. Use only for new files, not existing file modifications.",
-    )
+    return create_new_file

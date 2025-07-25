@@ -1,7 +1,8 @@
 from pathlib import Path
+from typing import Annotated
 
+from langchain_core.tools import tool
 from loguru import logger
-from pydantic_ai import RunContext, Tool
 
 from ..graph_updater import MemgraphIngestor
 from ..schemas import CodeSnippet
@@ -85,15 +86,15 @@ class CodeRetriever:
             )
 
 
-def create_code_retrieval_tool(code_retriever: CodeRetriever) -> Tool:
+def create_code_retrieval_tool(code_retriever: CodeRetriever):
     """Factory function to create the code snippet retrieval tool."""
 
-    async def get_code_snippet(ctx: RunContext, qualified_name: str) -> CodeSnippet:
+    @tool
+    async def get_code_snippet(
+        qualified_name: Annotated[str, "Full qualified name of the function, class, or method"]
+    ) -> CodeSnippet:
         """Retrieves the source code for a given qualified name."""
         logger.info(f"[Tool:GetCode] Retrieving code for: {qualified_name}")
         return await code_retriever.find_code_snippet(qualified_name)
 
-    return Tool(
-        function=get_code_snippet,
-        description="Retrieves the source code for a specific function, class, or method using its full qualified name.",
-    )
+    return get_code_snippet

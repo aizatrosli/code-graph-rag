@@ -1,12 +1,14 @@
+from typing import Annotated
+
+from langchain_core.tools import tool
 from loguru import logger
-from pydantic_ai import Tool
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
 from ..graph_updater import MemgraphIngestor
 from ..schemas import GraphData
-from ..services.llm import CypherGenerator, LLMGenerationError
+from ..services.llm_langgraph import CypherGenerator, LLMGenerationError
 
 
 class GraphQueryError(Exception):
@@ -19,7 +21,7 @@ def create_query_tool(
     ingestor: MemgraphIngestor,
     cypher_gen: CypherGenerator,
     console: Console | None = None,
-) -> Tool:
+):
     """
     Factory function that creates the knowledge graph query tool,
     injecting its dependencies.
@@ -28,7 +30,10 @@ def create_query_tool(
     if console is None:
         console = Console(width=None, force_terminal=True)
 
-    async def query_codebase_knowledge_graph(natural_language_query: str) -> GraphData:
+    @tool
+    async def query_codebase_knowledge_graph(
+        natural_language_query: Annotated[str, "Natural language query about the codebase"]
+    ) -> GraphData:
         """
         Queries the codebase knowledge graph using natural language.
 
@@ -100,7 +105,4 @@ def create_query_tool(
                 summary=f"There was an error querying the database: {e}",
             )
 
-    return Tool(
-        function=query_codebase_knowledge_graph,
-        description="Query the codebase knowledge graph using natural language questions. Ask in plain English about classes, functions, methods, dependencies, or code structure. Examples: 'Find all functions that call each other', 'What classes are in the user module', 'Show me functions with the longest call chains'.",
-    )
+    return query_codebase_knowledge_graph

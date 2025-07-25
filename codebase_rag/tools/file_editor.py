@@ -1,11 +1,11 @@
 import difflib
 from pathlib import Path
-from typing import TypedDict
+from typing import Annotated, TypedDict
 
 import diff_match_patch
+from langchain_core.tools import tool
 from loguru import logger
 from pydantic import BaseModel
-from pydantic_ai import Tool
 from tree_sitter import Node, Parser
 
 from ..language_config import get_language_config
@@ -467,11 +467,14 @@ class FileEditor:
             )
 
 
-def create_file_editor_tool(file_editor: FileEditor) -> Tool:
+def create_file_editor_tool(file_editor: FileEditor):
     """Factory function to create the file editor tool."""
 
+    @tool
     async def replace_code_surgically(
-        file_path: str, target_code: str, replacement_code: str
+        file_path: Annotated[str, "Path to the file to modify"],
+        target_code: Annotated[str, "The exact code block to find and replace (must match exactly)"],
+        replacement_code: Annotated[str, "The new code to replace the target with"]
     ) -> str:
         """
         Surgically replaces a specific code block in a file using diff-match-patch.
@@ -494,7 +497,4 @@ def create_file_editor_tool(file_editor: FileEditor) -> Tool:
         else:
             return f"Failed to apply surgical replacement in {file_path}. Target code not found or patches failed."
 
-    return Tool(
-        function=replace_code_surgically,
-        description="Surgically replaces specific code blocks in files. Requires exact target code and replacement. Only modifies the specified block, leaving rest of file unchanged. True surgical patching.",
-    )
+    return replace_code_surgically

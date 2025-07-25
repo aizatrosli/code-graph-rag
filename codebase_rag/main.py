@@ -31,7 +31,8 @@ from .config import (
 )
 from .graph_updater import GraphUpdater, MemgraphIngestor
 from .parser_loader import load_parsers
-from .services.llm import CypherGenerator, create_rag_orchestrator
+from .services.llm_langgraph import CypherGenerator
+from .rag_orchestrator import RAGOrchestrator
 from .tools.code_retrieval import CodeRetriever, create_code_retrieval_tool
 from .tools.codebase_query import create_query_tool
 from .tools.directory_lister import DirectoryLister, create_directory_lister_tool
@@ -689,7 +690,7 @@ def _initialize_services_and_agent(repo_path: str, ingestor: MemgraphIngestor) -
     directory_lister_tool = create_directory_lister_tool(directory_lister)
     document_analyzer_tool = create_document_analyzer_tool(document_analyzer)
 
-    rag_agent = create_rag_orchestrator(
+    rag_agent = RAGOrchestrator(
         tools=[
             query_tool,
             code_tool,
