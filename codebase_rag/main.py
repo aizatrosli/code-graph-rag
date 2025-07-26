@@ -40,7 +40,7 @@ from .tools.document_analyzer import DocumentAnalyzer, create_document_analyzer_
 from .tools.file_editor import FileEditor, create_file_editor_tool
 from .tools.file_reader import FileReader, create_file_reader_tool
 from .tools.file_writer import FileWriter, create_file_writer_tool
-from .tools.shell_command import ShellCommander, create_shell_command_tool
+from .tools.simple_shell_command import ShellCommander, create_shell_command_tool
 
 # Style constants
 confirm_edits_globally = True
@@ -473,12 +473,12 @@ def get_multiline_input(prompt_text: str = "Ask a question") -> str:
     """Get multiline input from user with Ctrl+J to submit."""
     bindings = KeyBindings()
 
-    @bindings.add("c-j")
+    @bindings.add("enter")
     def submit(event: Any) -> None:
         """Submit the current input."""
         event.app.exit(result=event.app.current_buffer.text)
 
-    @bindings.add("enter")
+    @bindings.add("s-down")
     def new_line(event: Any) -> None:
         """Insert a new line instead of submitting."""
         event.current_buffer.insert_text("\n")
@@ -494,7 +494,7 @@ def get_multiline_input(prompt_text: str = "Ask a question") -> str:
     # Display the colored prompt first
     print_formatted_text(
         HTML(
-            f"<ansigreen><b>{clean_prompt}</b></ansigreen> <ansiyellow>(Press Ctrl+J to submit, Enter for new line)</ansiyellow>: "
+            f"<ansigreen><b>{clean_prompt}</b></ansigreen> <ansiyellow>(Press Enter to submit, Shift+Down for new line)</ansiyellow>: "
         )
     )
 

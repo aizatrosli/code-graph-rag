@@ -16,7 +16,7 @@ def detect_provider_from_model(model_name: str) -> Literal["azure", "openai", "v
         return "azure"
     elif model_name.startswith("gpt-") or model_name.startswith("o1-"):
         return "openai"
-    elif model_name.startswith("vllm-"):
+    elif model_name.startswith("Qwen"):
         return "vllm"
     elif model_name.startswith("deepseek-"):
         return "deepseek"

@@ -13,7 +13,7 @@ from .services.llm_langgraph import create_orchestrator_llm, get_orchestrator_sy
 
 class RAGState(MessagesState):
     """State for the RAG workflow."""
-    pass
+    user_request: str = ""
 
 
 def create_rag_workflow(tools: List[Any]) -> StateGraph:
@@ -28,15 +28,16 @@ def create_rag_workflow(tools: List[Any]) -> StateGraph:
     
     def call_model(state: RAGState) -> Dict[str, Any]:
         """Call the model with the current state."""
+        user_request = ""
         messages = state["messages"]
-        
         # Add system message if not present
         if not messages or not isinstance(messages[0], SystemMessage):
-            system_msg = SystemMessage(content=get_orchestrator_system_prompt())
+            user_request = messages[-1].content if isinstance(messages[-1], HumanMessage) else state["user_request"]
+            system_msg = SystemMessage(content=get_orchestrator_system_prompt(messages[-1].content, user_request))
             messages = [system_msg] + messages
         
         response = llm_with_tools.invoke(messages)
-        return {"messages": [response]}
+        return {"messages": [response], "user_request": user_request}
     
     def should_continue(state: RAGState) -> str:
         """Determine whether to continue with tools or end."""
@@ -76,6 +77,7 @@ def create_rag_workflow(tools: List[Any]) -> StateGraph:
     return workflow
 
 
+
 class RAGOrchestrator:
     """LangGraph-based RAG orchestrator."""
     
@@ -101,9 +103,27 @@ class RAGOrchestrator:
             last_message = final_messages[-1]
             # Create a simple response object that mimics pydantic_ai's response
             class Response:
-                def __init__(self, output: str):
+                def __init__(self, output: str, new_messages: List[BaseMessage]):
                     self.output = output
+                    self._new_messages = new_messages
+                
+                def new_messages(self) -> List[BaseMessage]:
+                    """Return the new messages from this conversation turn."""
+                    return self._new_messages
             
-            return Response(last_message.content)
+            # Calculate new messages (everything after the original message history)
+            new_messages = final_messages[len(message_history) + 1:]  # +1 to skip the user message we added
+            
+            return Response(last_message.content, new_messages)
         
-        return Response("No response generated")
+        # Create a simple response object for no response case
+        class Response:
+            def __init__(self, output: str, new_messages: List[BaseMessage]):
+                self.output = output
+                self._new_messages = new_messages
+            
+            def new_messages(self) -> List[BaseMessage]:
+                """Return the new messages from this conversation turn."""
+                return self._new_messages
+        
+        return Response("No response generated", [])

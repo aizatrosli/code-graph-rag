@@ -2,6 +2,9 @@
 LangGraph-based LLM service module with Azure OpenAI and vLLM support.
 """
 import os
+import re
+import yake
+import pandas as pd
 from typing import cast
 
 from langchain_core.language_models import BaseChatModel
@@ -16,7 +19,8 @@ from ..prompts import (
     RAG_ORCHESTRATOR_SYSTEM_PROMPT,
 )
 
-
+ACRONYMDB_PATH = '/*/acronym.pkl/'
+REPO_DESC = 'Related to LLM architecture'
 class LLMGenerationError(Exception):
     """Custom exception for LLM generation failures."""
     pass
@@ -53,7 +57,7 @@ class CypherGenerator:
                     api_version=settings.AZURE_OPENAI_API_VERSION,
                     default_headers=headers
                 )
-                self.system_prompt = CYPHER_SYSTEM_PROMPT
+                self.system_prompt = LOCAL_CYPHER_SYSTEM_PROMPT
 
             elif cypher_provider == "vllm":
                 # Extract model name from model ID (vllm-model-name format)
@@ -62,7 +66,7 @@ class CypherGenerator:
                     model=model_name,
                     api_key=settings.VLLM_API_KEY,
                     base_url=str(settings.VLLM_ENDPOINT),
-                    temperature=0.1,
+                    temperature=0.0,
                 )
                 self.system_prompt = LOCAL_CYPHER_SYSTEM_PROMPT
 
@@ -163,7 +167,7 @@ def create_orchestrator_llm() -> BaseChatModel:
                 model=model_name,
                 api_key=settings.VLLM_API_KEY,
                 base_url=str(settings.VLLM_ENDPOINT),
-                temperature=0.1,
+                temperature=0.0,
             )
 
         elif orchestrator_provider == "deepseek":
@@ -199,6 +203,21 @@ def create_orchestrator_llm() -> BaseChatModel:
         ) from e
 
 
-def get_orchestrator_system_prompt() -> str:
+def get_orchestrator_system_prompt(input: str, user_req: str) -> str:
     """Get the system prompt for the orchestrator."""
-    return RAG_ORCHESTRATOR_SYSTEM_PROMPT
+    ndf = pd.DataFrame()
+    if os.path.exists(ACRONYMDB_PATH):
+        ndf = pd.read_pickle(ACRONYMDB_PATH)
+        keys = yake.KeywordExtractor(lan="en", n=1, dedupLim=0.9, dedupFunc='seqm', windowsSize=50, top=50, features=None).extract_keywords(input)
+        keys = [key[0].lower() for key in keys]
+        logger.debug(f"Keywords init: {keys}")
+        keys = keys if keys else input.strip().split(' ')
+        logger.debug(f"Keywords refine: {keys}")
+        ndf = pd.concat([ndf[ndf['name'].str.lower() == d] for d in keys], ignore_index=True)
+        ndf = ndf.drop_duplicates(['name', 'description'])
+    if ndf.empty:
+        return RAG_ORCHESTRATOR_SYSTEM_PROMPT.format(ACRONYM="", USER_REQ=user_req, GOAL=REPO_DESC)
+    acronym = "**Acronym References:**\n"
+    for i,a in enumerate(ndf.to_dict(orient='records')):
+        acronym += f'{i}.  {a["name"]} - {a["description"]}\n'
+    return RAG_ORCHESTRATOR_SYSTEM_PROMPT.format(ACRONYM=acronym, USER_REQ=user_req, GOAL=REPO_DESC)
