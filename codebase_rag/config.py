@@ -1,148 +1,72 @@
-from __future__ import annotations
+import os
 
 from typing import Literal
-
+from dataclasses import dataclass, field, replace, asdict
 from dotenv import load_dotenv
-from pydantic import AnyHttpUrl
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from prompt_toolkit.styles import Style
+from langchain_core.language_models.llms import BaseLLM
+from langchain_openai import AzureChatOpenAI, ChatOpenAI
 
 load_dotenv()
 
-
-def detect_provider_from_model(model_name: str) -> Literal["azure", "openai", "vllm", "deepseek", "local"]:
-    """Detect the provider based on model name patterns."""
-    if model_name.startswith("azure-"):
-        return "azure"
-    elif model_name.startswith("gpt-") or model_name.startswith("o1-"):
-        return "openai"
-    elif model_name.startswith("Qwen"):
-        return "vllm"
-    elif model_name.startswith("deepseek-"):
-        return "deepseek"
-    else:
-        return "local"
-
-
-class AppConfig(BaseSettings):
-    """
-    Application Configuration using Pydantic for robust validation and type-safety.
-    All settings are loaded from environment variables or a .env file.
-    """
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-    )
-
-    MEMGRAPH_HOST: str = "localhost"
-    MEMGRAPH_PORT: int = 7687
-    MEMGRAPH_HTTP_PORT: int = 7444
-    LAB_PORT: int = 3000
+@dataclass
+class CodebaseConfig:
+    MEMGRAPH_HOST: str = os.environ.get("MEMGRAPH_HOST", "localhost")
+    MEMGRAPH_PORT: int = os.environ.get("MEMGRAPH_PORT", 7687)
+    MEMGRAPH_HTTP_PORT: int = os.environ.get("MEMGRAPH_HTTP_PORT", 7444)
+    LAB_PORT: int = os.environ.get("LAB_PORT", 3000)
 
     # Azure OpenAI Configuration
-    AZURE_OPENAI_API_KEY: str | None = None
-    AZURE_OPENAI_ENDPOINT: str | None = None
-    AZURE_OPENAI_API_VERSION: str = "2024-02-01"
-    AZURE_ORCHESTRATOR_DEPLOYMENT: str = "gpt-4o-mini"
-    AZURE_CYPHER_DEPLOYMENT: str = "gpt-35-turbo"
+    CODEBASE_PROVIDER: str | None = os.environ.get("CODEBASE_PROVIDER", "azure")
+    CODEBASE_API_KEY: str | None = os.environ.get("CODEBASE_API_KEY")
+    CODEBASE_ENDPOINT: str | None = os.environ.get("CODEBASE_ENDPOINT")
+    CODEBASE_API_VERSION: str = os.environ.get("CODEBASE_API_VERSION", "2024-02-01")
+    CODEBASE_ORCHESTRATOR_DEPLOYMENT: str = os.environ.get("CODEBASE_ORCHESTRATOR_DEPLOYMENT", "gpt-4o-mini")
+    CODEBASE_CYPHER_DEPLOYMENT: str = os.environ.get("CODEBASE_CYPHER_DEPLOYMENT", "gpt-35-turbo")
 
-    # vLLM Configuration
-    VLLM_ENDPOINT: AnyHttpUrl = AnyHttpUrl("http://localhost:8000/v1")
-    VLLM_ORCHESTRATOR_MODEL_ID: str = "meta-llama/Llama-3.1-8B-Instruct"
-    VLLM_CYPHER_MODEL_ID: str = "meta-llama/Llama-3.1-8B-Instruct"
-    VLLM_API_KEY: str = "vllm"
+    TARGET_REPO_PATH: str = os.environ.get("TARGET_REPO_PATH", ".")
+    SHELL_COMMAND_TIMEOUT: int = os.environ.get("SHELL_COMMAND_TIMEOUT", 30)
+    RECURSION_LIMIT: int = os.environ.get("RECURSION_LIMIT", 20)
 
-    # DeepSeek Configuration
-    DEEPSEEK_API_KEY: str | None = None
-    DEEPSEEK_ENDPOINT: AnyHttpUrl = AnyHttpUrl("https://api.deepseek.com/v1")
-    DEEPSEEK_ORCHESTRATOR_MODEL_ID: str = "deepseek-chat"
-    DEEPSEEK_CYPHER_MODEL_ID: str = "deepseek-chat"
+    LANGFUSE_HOST: str = os.environ.get("LANGFUSE_HOST", "http://")
+    LANGFUSE_PUBLIC_KEY: str = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
+    LANGFUSE_SECRET_KEY: str = os.environ.get("LANGFUSE_SECRET_KEY", "")
+    LANGFUSE_PROJECT: str = os.environ.get("LANGFUSE_PROJECT", "CodeRAG")
 
-    # Local Model Configuration (Ollama)
-    LOCAL_MODEL_ENDPOINT: AnyHttpUrl = AnyHttpUrl("http://localhost:11434/v1")
-    LOCAL_ORCHESTRATOR_MODEL_ID: str = "llama3"
-    LOCAL_CYPHER_MODEL_ID: str = "llama3"
-    LOCAL_MODEL_API_KEY: str = "ollama"
+    ACTIVE_ORCHESTRATOR_MODEL: BaseLLM | None = None
+    ACTIVE_CYPHER_MODEL: BaseLLM | None = None
+    def __post_init__(self):
+        if self.CODEBASE_PROVIDER == "azure":
+            # Extract deployment name from model ID (azure-deployment-name format)
+            headers = {'Ocp-Apim-Subscription-Key': self.CODEBASE_API_KEY}
+            self.ACTIVE_ORCHESTRATOR_MODEL = AzureChatOpenAI(
+                azure_endpoint=self.CODEBASE_ENDPOINT,
+                api_key='dummy',
+                azure_deployment=self.CODEBASE_ORCHESTRATOR_DEPLOYMENT,
+                api_version=self.CODEBASE_API_VERSION,
+                default_headers=headers
+            )
+            self.ACTIVE_CYPHER_MODEL = AzureChatOpenAI(
+                azure_endpoint=self.CODEBASE_ENDPOINT,
+                api_key='dummy',
+                azure_deployment=self.CODEBASE_CYPHER_DEPLOYMENT,
+                api_version=self.CODEBASE_API_VERSION,
+                default_headers=headers
+            )
+        else:
+            self.ACTIVE_ORCHESTRATOR_MODEL = ChatOpenAI(
+                model=self.CODEBASE_ORCHESTRATOR_DEPLOYMENT,
+                api_key=self.CODEBASE_API_KEY,
+                base_url=self.CODEBASE_ENDPOINT,
+                temperature=0.0,
+            )
+            self.ACTIVE_ORCHESTRATOR_MODEL = ChatOpenAI(
+                model=self.CODEBASE_ORCHESTRATOR_DEPLOYMENT,
+                api_key=self.CODEBASE_API_KEY,
+                base_url=self.CODEBASE_ENDPOINT,
+                temperature=0.0,
+            )
 
-    # OpenAI Configuration
-    OPENAI_API_KEY: str | None = None
-    OPENAI_ORCHESTRATOR_MODEL_ID: str = "gpt-4o-mini"
-    OPENAI_CYPHER_MODEL_ID: str = "gpt-4o-mini"
-
-    TARGET_REPO_PATH: str = "."
-    SHELL_COMMAND_TIMEOUT: int = 30
-
-    # Active models (set via CLI or defaults)
-    _active_orchestrator_model: str | None = None
-    _active_cypher_model: str | None = None
-
-    def validate_for_usage(self) -> None:
-        """Validate that required API keys are set for the providers being used."""
-        # Get the providers for active models
-        orchestrator_provider = detect_provider_from_model(
-            self.active_orchestrator_model
-        )
-        cypher_provider = detect_provider_from_model(self.active_cypher_model)
-
-        # Check required API keys for each provider being used
-        providers_in_use = {orchestrator_provider, cypher_provider}
-
-        if "azure" in providers_in_use:
-            if not self.AZURE_OPENAI_API_KEY:
-                raise ValueError(
-                    "Configuration Error: AZURE_OPENAI_API_KEY is required when using Azure OpenAI models."
-                )
-            if not self.AZURE_OPENAI_ENDPOINT:
-                raise ValueError(
-                    "Configuration Error: AZURE_OPENAI_ENDPOINT is required when using Azure OpenAI models."
-                )
-
-        if "openai" in providers_in_use:
-            if not self.OPENAI_API_KEY:
-                raise ValueError(
-                    "Configuration Error: OPENAI_API_KEY is required when using OpenAI models."
-                )
-        
-        if "vllm" in providers_in_use:
-            # vLLM typically doesn't require API key validation
-            pass
-
-        if "deepseek" in providers_in_use:
-            if not self.DEEPSEEK_API_KEY:
-                raise ValueError(
-                    "Configuration Error: DEEPSEEK_API_KEY is required when using DeepSeek models."
-                )
-
-        return
-
-    @property
-    def active_orchestrator_model(self) -> str:
-        """Determines the active orchestrator model ID."""
-        if self._active_orchestrator_model:
-            return self._active_orchestrator_model
-        # Default fallback to Azure OpenAI
-        return f"azure-{self.AZURE_ORCHESTRATOR_DEPLOYMENT}"
-
-    @property
-    def active_cypher_model(self) -> str:
-        """Determines the active cypher model ID."""
-        if self._active_cypher_model:
-            return self._active_cypher_model
-        # Default fallback to Azure OpenAI
-        return f"azure-{self.AZURE_CYPHER_DEPLOYMENT}"
-
-    def set_orchestrator_model(self, model: str) -> None:
-        """Set the active orchestrator model."""
-        self._active_orchestrator_model = model
-
-    def set_cypher_model(self, model: str) -> None:
-        """Set the active cypher model."""
-        self._active_cypher_model = model
-
-
-settings = AppConfig()
 
 # --- Global Ignore Patterns ---
 # Directories and files to ignore during codebase scanning and real-time updates.

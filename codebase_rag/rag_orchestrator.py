@@ -2,30 +2,34 @@
 LangGraph workflow for the RAG orchestrator.
 """
 from typing import Any, Dict, List
+from loguru import logger
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, MessagesState
 from langgraph.prebuilt import ToolNode
-from loguru import logger
+from langchain_core.language_models.llms import BaseLLM
+from langchain.schema.runnable.config import RunnableConfig
+from langfuse.langchain import CallbackHandler
+from langfuse import Langfuse, get_client
 
-from .services.llm_langgraph import create_orchestrator_llm, get_orchestrator_system_prompt
-
+from .services.llm_langgraph import get_orchestrator_system_prompt
+from .config import CodebaseSettings
 
 class RAGState(MessagesState):
     """State for the RAG workflow."""
     user_request: str = ""
 
 
-def create_rag_workflow(tools: List[Any]) -> StateGraph:
+def create_rag_workflow(tools: List[Any], settings: CodebaseSettings) -> StateGraph:
     """Create the LangGraph workflow for RAG orchestration."""
     
     # Get the LLM and bind tools to it
-    llm = create_orchestrator_llm()
+    llm = settings.ACTIVE_ORCHESTRATOR_MODE
     llm_with_tools = llm.bind_tools(tools)
     
     # Create tool node
     tool_node = ToolNode(tools)
-    
+            
     def call_model(state: RAGState) -> Dict[str, Any]:
         """Call the model with the current state."""
         user_request = ""
@@ -36,7 +40,13 @@ def create_rag_workflow(tools: List[Any]) -> StateGraph:
             system_msg = SystemMessage(content=get_orchestrator_system_prompt(messages[-1].content, user_request))
             messages = [system_msg] + messages
         
-        response = llm_with_tools.invoke(messages)
+        config = RunnableConfig(run_name=settings.LANGFUSE_PROJECT, recursion_limit=settings.RECURSION_LIMIT)
+        if settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY:
+            Langfuse(host=settings.LANGFUSE_HOST, public_key=settings.LANGFUSE_PUBLIC_KEY, secret_key=settings.LANGFUSE_SECRET_KEY)
+            lfcallback = CallbackHandler()
+            config = RunnableConfig(callbacks=[lfcallback], run_name=settings.LANGFUSE_PROJECT, recursion_limit=settings.RECURSION_LIMIT)
+        
+        response = llm_with_tools.invoke(messages, config=config)
         return {"messages": [response], "user_request": user_request}
     
     def should_continue(state: RAGState) -> str:
@@ -76,13 +86,20 @@ def create_rag_workflow(tools: List[Any]) -> StateGraph:
     
     return workflow
 
-
+class Response:
+    def __init__(self, output: str, new_messages: List[BaseMessage]):
+        self.output = output
+        self._new_messages = new_messages
+    
+    def new_messages(self) -> List[BaseMessage]:
+        """Return the new messages from this conversation turn."""
+        return self._new_messages
 
 class RAGOrchestrator:
     """LangGraph-based RAG orchestrator."""
     
-    def __init__(self, tools: List[Any]):
-        self.workflow = create_rag_workflow(tools)
+    def __init__(self, tools: List[Any], settings: CodebaseSettings):
+        self.workflow = create_rag_workflow(tools, settings)
         self.app = self.workflow.compile()
         logger.info("RAG orchestrator initialized with LangGraph")
     
@@ -101,29 +118,9 @@ class RAGOrchestrator:
         final_messages = result["messages"]
         if final_messages:
             last_message = final_messages[-1]
-            # Create a simple response object that mimics pydantic_ai's response
-            class Response:
-                def __init__(self, output: str, new_messages: List[BaseMessage]):
-                    self.output = output
-                    self._new_messages = new_messages
-                
-                def new_messages(self) -> List[BaseMessage]:
-                    """Return the new messages from this conversation turn."""
-                    return self._new_messages
-            
             # Calculate new messages (everything after the original message history)
             new_messages = final_messages[len(message_history) + 1:]  # +1 to skip the user message we added
             
             return Response(last_message.content, new_messages)
-        
-        # Create a simple response object for no response case
-        class Response:
-            def __init__(self, output: str, new_messages: List[BaseMessage]):
-                self.output = output
-                self._new_messages = new_messages
-            
-            def new_messages(self) -> List[BaseMessage]:
-                """Return the new messages from this conversation turn."""
-                return self._new_messages
-        
+
         return Response("No response generated", [])

@@ -26,8 +26,7 @@ from .config import (
     EDIT_REQUEST_KEYWORDS,
     EDIT_TOOLS,
     ORANGE_STYLE,
-    detect_provider_from_model,
-    settings,
+    CodebaseConfig,
 )
 from .graph_updater import GraphUpdater, MemgraphIngestor
 from .parser_loader import load_parsers
@@ -36,7 +35,6 @@ from .rag_orchestrator import RAGOrchestrator
 from .tools.code_retrieval import CodeRetriever, create_code_retrieval_tool
 from .tools.codebase_query import create_query_tool
 from .tools.directory_lister import DirectoryLister, create_directory_lister_tool
-from .tools.document_analyzer import DocumentAnalyzer, create_document_analyzer_tool
 from .tools.file_editor import FileEditor, create_file_editor_tool
 from .tools.file_reader import FileReader, create_file_reader_tool
 from .tools.file_writer import FileWriter, create_file_writer_tool
@@ -177,40 +175,21 @@ def _setup_common_initialization(repo_path: str) -> Path:
 
 
 def _create_configuration_table(
-    repo_path: str,
+    settings: CodebaseConfig,
     title: str = "Graph-Code Initializing...",
     language: str | None = None,
 ) -> Table:
-    """Create and return a configuration table."""
+    confirmation_status = "Enabled" if confirm_edits_globally else "Disabled (YOLO Mode)"
+
     table = Table(title=f"[bold green]{title}[/bold green]")
     table.add_column("Configuration", style="cyan")
     table.add_column("Value", style="magenta")
-
-    # Add language row if provided (for optimization sessions)
     if language:
         table.add_row("Target Language", language)
-
-    orchestrator_model = settings.active_orchestrator_model
-    orchestrator_provider = detect_provider_from_model(orchestrator_model)
-    table.add_row(
-        "Orchestrator Model", f"{orchestrator_model} ({orchestrator_provider})"
-    )
-
-    cypher_model = settings.active_cypher_model
-    cypher_provider = detect_provider_from_model(cypher_model)
-    table.add_row("Cypher Model", f"{cypher_model} ({cypher_provider})")
-
-    # Show local endpoint if any model is using local provider
-    if orchestrator_provider == "local" or cypher_provider == "local":
-        table.add_row("Local Model Endpoint", str(settings.LOCAL_MODEL_ENDPOINT))
-
-    # Show edit confirmation status
-    confirmation_status = (
-        "Enabled" if confirm_edits_globally else "Disabled (YOLO Mode)"
-    )
+    table.add_row("Orchestrator Model", f"{settings.CODEBASE_ORCHESTRATOR_DEPLOYMENT} ({settings.CODEBASE_PROVIDER})")
+    table.add_row("Cypher Model", f"{settings.CODEBASE_CYPHER_DEPLOYMENT} ({settings.CODEBASE_PROVIDER})")
     table.add_row("Edit Confirmation", confirmation_status)
-    table.add_row("Target Repository", repo_path)
-
+    table.add_row("Target Repository", settings.TARGET_REPO_PATH)
     return table
 
 
@@ -614,20 +593,6 @@ async def run_chat_loop(
             console.print(f"[bold red]An unexpected error occurred: {e}[/bold red]")
 
 
-def _update_model_settings(
-    orchestrator_model: str | None,
-    cypher_model: str | None,
-) -> None:
-    """Update model settings based on command-line arguments."""
-    # Set orchestrator model if provided
-    if orchestrator_model:
-        settings.set_orchestrator_model(orchestrator_model)
-
-    # Set cypher model if provided
-    if cypher_model:
-        settings.set_cypher_model(cypher_model)
-
-
 def _export_graph_to_file(ingestor: MemgraphIngestor, output: str) -> bool:
     """
     Export graph data to a JSON file.
@@ -665,30 +630,27 @@ def _export_graph_to_file(ingestor: MemgraphIngestor, output: str) -> bool:
         return False
 
 
-def _initialize_services_and_agent(repo_path: str, ingestor: MemgraphIngestor) -> Any:
+def _initialize_services_and_agent(settings: CodebaseConfig, ingestor: MemgraphIngestor) -> Any:
     """Initializes all services and creates the RAG agent."""
     # Validate settings once before initializing any LLM services
-    settings.validate_for_usage()
 
-    cypher_generator = CypherGenerator()
-    code_retriever = CodeRetriever(project_root=repo_path, ingestor=ingestor)
-    file_reader = FileReader(project_root=repo_path)
-    file_writer = FileWriter(project_root=repo_path)
-    file_editor = FileEditor(project_root=repo_path)
+    cypher_generator = CypherGenerator(llm=settings.ACTIVE_CYPHER_MODEL)
+    code_retriever = CodeRetriever(project_root=settings.TARGET_REPO_PATH, ingestor=ingestor)
+    file_reader = FileReader(project_root=settings.TARGET_REPO_PATH)
+    file_writer = FileWriter(project_root=settings.TARGET_REPO_PATH)
+    file_editor = FileEditor(project_root=settings.TARGET_REPO_PATH)
     shell_commander = ShellCommander(
-        project_root=repo_path, timeout=settings.SHELL_COMMAND_TIMEOUT
+        project_root=settings.TARGET_REPO_PATH, timeout=settings.SHELL_COMMAND_TIMEOUT
     )
-    directory_lister = DirectoryLister(project_root=repo_path)
-    document_analyzer = DocumentAnalyzer(project_root=repo_path)
+    directory_lister = DirectoryLister(project_root=settings.TARGET_REPO_PATH)
 
-    query_tool = create_query_tool(ingestor, cypher_generator, console)
+    query_tool = create_query_tool(ingestor, cypher_generator)
     code_tool = create_code_retrieval_tool(code_retriever)
     file_reader_tool = create_file_reader_tool(file_reader)
     file_writer_tool = create_file_writer_tool(file_writer)
     file_editor_tool = create_file_editor_tool(file_editor)
     shell_command_tool = create_shell_command_tool(shell_commander)
     directory_lister_tool = create_directory_lister_tool(directory_lister)
-    document_analyzer_tool = create_document_analyzer_tool(document_analyzer)
 
     rag_agent = RAGOrchestrator(
         tools=[
@@ -699,22 +661,19 @@ def _initialize_services_and_agent(repo_path: str, ingestor: MemgraphIngestor) -
             file_editor_tool,
             shell_command_tool,
             directory_lister_tool,
-            document_analyzer_tool,
-        ]
+        ],
+        settings=settings,
     )
     return rag_agent
 
 
-async def main_async(repo_path: str) -> None:
+async def main_async(settings: CodebaseConfig) -> None:
     """Initializes services and runs the main application loop."""
-    project_root = _setup_common_initialization(repo_path)
-
-    table = _create_configuration_table(repo_path)
+    project_root = _setup_common_initialization(settings.TARGET_REPO_PATH)
+    table = _create_configuration_table(settings.TARGET_REPO_PATH)
     console.print(table)
 
-    with MemgraphIngestor(
-        host=settings.MEMGRAPH_HOST, port=settings.MEMGRAPH_PORT
-    ) as ingestor:
+    with MemgraphIngestor( host=settings.MEMGRAPH_HOST, port=settings.MEMGRAPH_PORT) as ingestor:
         console.print("[bold green]Successfully connected to Memgraph.[/bold green]")
         console.print(
             Panel(
@@ -723,7 +682,7 @@ async def main_async(repo_path: str) -> None:
             )
         )
 
-        rag_agent = _initialize_services_and_agent(repo_path, ingestor)
+        rag_agent = _initialize_services_and_agent(settings, ingestor)
         await run_chat_loop(rag_agent, [], project_root)
 
 
@@ -766,7 +725,12 @@ def start(
     # Set confirmation mode based on flag
     confirm_edits_globally = not no_confirm
 
-    target_repo_path = repo_path or settings.TARGET_REPO_PATH
+    settings = CodebaseConfig(
+        TARGET_REPO_PATH=repo_path,
+        CODEBASE_ORCHESTRATOR_DEPLOYMENT=orchestrator_model,
+        CODEBASE_CYPHER_DEPLOYMENT=cypher_model,
+    )
+
 
     # Validate output option usage
     if output and not update_graph:
@@ -775,17 +739,10 @@ def start(
         )
         raise typer.Exit(1)
 
-    _update_model_settings(orchestrator_model, cypher_model)
-
     if update_graph:
-        repo_to_update = Path(target_repo_path)
-        console.print(
-            f"[bold green]Updating knowledge graph for: {repo_to_update}[/bold green]"
-        )
-
-        with MemgraphIngestor(
-            host=settings.MEMGRAPH_HOST, port=settings.MEMGRAPH_PORT
-        ) as ingestor:
+        repo_to_update = Path(settings.TARGET_REPO_PATH)
+        console.print(f"[bold green]Updating knowledge graph for: {repo_to_update}[/bold green]")
+        with MemgraphIngestor(host=settings.MEMGRAPH_HOST, port=settings.MEMGRAPH_PORT) as ingestor:
             if clean:
                 console.print("[bold yellow]Cleaning database...[/bold yellow]")
                 ingestor.clean_database()
@@ -807,7 +764,7 @@ def start(
         return
 
     try:
-        asyncio.run(main_async(target_repo_path))
+        asyncio.run(main_async(settings))
     except KeyboardInterrupt:
         console.print("\n[bold red]Application terminated by user.[/bold red]")
     except ValueError as e:
@@ -831,7 +788,7 @@ def export(
         raise typer.Exit(1)
 
     console.print("[bold cyan]Connecting to Memgraph to export graph...[/bold cyan]")
-
+    settings = CodebaseConfig()
     try:
         with MemgraphIngestor(
             host=settings.MEMGRAPH_HOST, port=settings.MEMGRAPH_PORT
@@ -848,32 +805,20 @@ def export(
 
 async def main_optimize_async(
     language: str,
-    target_repo_path: str,
+    settings: CodebaseConfig,
     reference_document: str | None = None,
-    orchestrator_model: str | None = None,
-    cypher_model: str | None = None,
 ) -> None:
     """Async wrapper for the optimization functionality."""
-    project_root = _setup_common_initialization(target_repo_path)
+    project_root = _setup_common_initialization(settings.TARGET_REPO_PATH)
 
-    _update_model_settings(orchestrator_model, cypher_model)
-
-    console.print(
-        f"[bold cyan]Initializing optimization session for {language} codebase: {project_root}[/bold cyan]"
-    )
-
-    # Display configuration with language included
-    table = _create_configuration_table(
-        str(project_root), "Optimization Session Configuration", language
-    )
+    console.print(f"[bold cyan]Initializing optimization session for {language} codebase: {project_root}[/bold cyan]")
+    table = _create_configuration_table(settings, "Optimization Session Configuration", language)
     console.print(table)
 
-    with MemgraphIngestor(
-        host=settings.MEMGRAPH_HOST, port=settings.MEMGRAPH_PORT
-    ) as ingestor:
+    with MemgraphIngestor(host=settings.MEMGRAPH_HOST, port=settings.MEMGRAPH_PORT) as ingestor:
         console.print("[bold green]Successfully connected to Memgraph.[/bold green]")
 
-        rag_agent = _initialize_services_and_agent(target_repo_path, ingestor)
+        rag_agent = _initialize_services_and_agent(settings, ingestor)
         await run_optimization_loop(
             rag_agent, [], project_root, language, reference_document
         )
@@ -911,16 +856,18 @@ def optimize(
     # Set confirmation mode based on flag
     confirm_edits_globally = not no_confirm
 
-    target_repo_path = repo_path or settings.TARGET_REPO_PATH
+    settings = CodebaseConfig(
+        TARGET_REPO_PATH=repo_path,
+        CODEBASE_ORCHESTRATOR_DEPLOYMENT=orchestrator_model,
+        CODEBASE_CYPHER_DEPLOYMENT=cypher_model,
+    )
 
     try:
         asyncio.run(
             main_optimize_async(
-                language,
-                target_repo_path,
-                reference_document,
-                orchestrator_model,
-                cypher_model,
+                language=language,
+                settings=settings,
+                reference_document=reference_document,
             )
         )
     except KeyboardInterrupt:

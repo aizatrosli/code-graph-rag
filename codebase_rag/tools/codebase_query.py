@@ -2,9 +2,6 @@ from typing import Annotated
 
 from langchain_core.tools import tool
 from loguru import logger
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
 
 from ..graph_updater import MemgraphIngestor
 from ..schemas import GraphData
@@ -20,15 +17,11 @@ class GraphQueryError(Exception):
 def create_query_tool(
     ingestor: MemgraphIngestor,
     cypher_gen: CypherGenerator,
-    console: Console | None = None,
 ):
     """
     Factory function that creates the knowledge graph query tool,
     injecting its dependencies.
     """
-    # Use provided console or create a default one
-    if console is None:
-        console = Console(width=None, force_terminal=True)
 
     @tool
     async def query_codebase_knowledge_graph(
@@ -78,14 +71,6 @@ def create_query_tool(
                         else:
                             renderable_values.append(str(value))
                     table.add_row(*renderable_values)
-
-                console.print(
-                    Panel(
-                        table,
-                        title="[bold blue]Cypher Query Results[/bold blue]",
-                        expand=False,
-                    )
-                )
 
             summary = f"Successfully retrieved {len(results)} item(s) from the graph."
             return GraphData(query_used=cypher_query, results=results, summary=summary)
