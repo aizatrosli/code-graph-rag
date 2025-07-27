@@ -9,7 +9,7 @@ import diff_match_patch as dmp
 from rich.console import Console
 from rich.table import Table
 
-from ..language_config import LANGUAGE_CONFIGS, LanguageConfig
+from .language_config import LANGUAGE_CONFIGS, LanguageConfig
 
 
 @click.group()

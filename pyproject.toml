@@ -1,12 +1,13 @@
 [project]
 name = "graph-code"
-version = "0.0.2"
-description = "Add your description here"
+version = "0.0.3"
+description = "Optimized for Domain Specific"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
+
 dependencies = [
-    "pandas",
     "loguru>=0.7.3",
+    "pandas",
     "langgraph>=0.2.66",
     "langchain>=0.3.13",
     "langchain-core>=0.3.28",
@@ -23,9 +24,12 @@ dependencies = [
     "prompt-toolkit>=3.0.0",
     "diff-match-patch>=20241021",
     "click>=8.0.0",
+    "yake",
     "langfuse",
-    "yeke",
 ]
+
+[project.scripts]
+codebase_rag = "codebase_rag.main:app"
 
 [tool.setuptools]
 packages = ["codebase_rag"]

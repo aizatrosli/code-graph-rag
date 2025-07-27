@@ -7,7 +7,7 @@ import sys
 import uuid
 from pathlib import Path
 from typing import Any
-
+from dotenv import load_dotenv
 import typer
 from loguru import logger
 from prompt_toolkit import prompt
@@ -30,15 +30,17 @@ from .config import (
 )
 from .graph_updater import GraphUpdater, MemgraphIngestor
 from .parser_loader import load_parsers
-from .services.llm_langgraph import CypherGenerator
+from .services import CypherGenerator
 from .rag_orchestrator import RAGOrchestrator
-from .tools.code_retrieval import CodeRetriever, create_code_retrieval_tool
-from .tools.codebase_query import create_query_tool
-from .tools.directory_lister import DirectoryLister, create_directory_lister_tool
-from .tools.file_editor import FileEditor, create_file_editor_tool
-from .tools.file_reader import FileReader, create_file_reader_tool
-from .tools.file_writer import FileWriter, create_file_writer_tool
-from .tools.simple_shell_command import ShellCommander, create_shell_command_tool
+from .tools import CodeRetriever, create_code_retrieval_tool
+from .tools import create_query_tool
+from .tools import DirectoryLister, create_directory_lister_tool
+from .tools import FileEditor, create_file_editor_tool
+from .tools import FileReader, create_file_reader_tool
+from .tools import FileWriter, create_file_writer_tool
+from .tools import ShellCommander, create_shell_command_tool
+
+
 
 # Style constants
 confirm_edits_globally = True
@@ -714,14 +716,14 @@ def start(
         None, "--cypher-model", help="Specify the Cypher generator model ID"
     ),
     no_confirm: bool = typer.Option(
-        False,
+        True,
         "--no-confirm",
         help="Disable confirmation prompts for edit operations (YOLO mode)",
     ),
 ) -> None:
     """Starts the Codebase RAG CLI."""
     global confirm_edits_globally
-
+    load_dotenv()
     # Set confirmation mode based on flag
     confirm_edits_globally = not no_confirm
 

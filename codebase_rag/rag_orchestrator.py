@@ -12,7 +12,7 @@ from langchain.schema.runnable.config import RunnableConfig
 from langfuse.langchain import CallbackHandler
 from langfuse import Langfuse, get_client
 
-from .services.llm_langgraph import get_orchestrator_system_prompt
+from .services import get_orchestrator_system_prompt
 from .config import CodebaseConfig
 
 class RAGState(MessagesState):
@@ -24,7 +24,7 @@ def create_rag_workflow(tools: List[Any], settings: CodebaseConfig) -> StateGrap
     """Create the LangGraph workflow for RAG orchestration."""
     
     # Get the LLM and bind tools to it
-    llm = settings.ACTIVE_ORCHESTRATOR_MODE
+    llm = settings.ACTIVE_ORCHESTRATOR_MODEL
     llm_with_tools = llm.bind_tools(tools)
     
     # Create tool node

@@ -14,14 +14,14 @@ from codebase_rag.config import CodebaseConfig
 from codebase_rag.graph_updater import GraphUpdater, MemgraphIngestor
 from codebase_rag.parser_loader import load_parsers
 from codebase_rag.rag_orchestrator import RAGOrchestrator
-from codebase_rag.services.llm_langgraph import CypherGenerator
-from codebase_rag.tools.code_retrieval import CodeRetriever, create_code_retrieval_tool
-from codebase_rag.tools.codebase_query import create_query_tool
-from codebase_rag.tools.directory_lister import DirectoryLister, create_directory_lister_tool
-from codebase_rag.tools.file_editor import FileEditor, create_file_editor_tool
-from codebase_rag.tools.file_reader import FileReader, create_file_reader_tool
-from codebase_rag.tools.file_writer import FileWriter, create_file_writer_tool
-from codebase_rag.tools.simple_shell_command import ShellCommander, create_shell_command_tool
+from codebase_rag.services import CypherGenerator
+from codebase_rag.tools import CodeRetriever, create_code_retrieval_tool
+from codebase_rag.tools import create_query_tool
+from codebase_rag.tools import DirectoryLister, create_directory_lister_tool
+from codebase_rag.tools import FileEditor, create_file_editor_tool
+from codebase_rag.tools import FileReader, create_file_reader_tool
+from codebase_rag.tools import FileWriter, create_file_writer_tool
+from codebase_rag.tools import ShellCommander, create_shell_command_tool
 
 
 class CodeGraphRAG:
@@ -402,30 +402,20 @@ def optimize_codebase(
 
 def example_basic_usage():
     """Example of basic usage patterns."""
-    repo_path = "/path/to/your/repository"
+    repo_path = "/addc-data/weisshorn"
+
+    print("Knowledge graph created successfully")
     
-    # Create knowledge graph
-    success = create_knowledge_graph(
+    # Query the codebase
+    result = query_codebase(
         repo_path=repo_path,
-        clean_database=True,
-        export_path="graph_export.json"
+        question="What are the main classes in this codebase?"
     )
     
-    if success:
-        print("Knowledge graph created successfully")
-        
-        # Query the codebase
-        result = query_codebase(
-            repo_path=repo_path,
-            question="What are the main classes in this codebase?"
-        )
-        
-        if result["success"]:
-            print("Query result:", result["output"])
-        else:
-            print("Query failed:", result["error"])
+    if result["success"]:
+        print("Query result:", result["output"])
     else:
-        print("Failed to create knowledge graph")
+        print("Query failed:", result["error"])
 
 
 def example_optimization_usage():
@@ -448,7 +438,7 @@ def example_optimization_usage():
 
 def example_advanced_usage():
     """Example of advanced usage with context management."""
-    repo_path = "/path/to/your/repository"
+    repo_path = "/addc-data/weisshorn"
     settings = CodebaseConfig(
         TARGET_REPO_PATH=repo_path,
     )

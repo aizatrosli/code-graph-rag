@@ -7,7 +7,7 @@ import toml
 from loguru import logger
 from tree_sitter import Node, Parser, QueryCursor
 
-from codebase_rag.services.graph_service import MemgraphIngestor
+from .services import MemgraphIngestor
 
 from .config import IGNORE_PATTERNS
 from .language_config import LanguageConfig, get_language_config
