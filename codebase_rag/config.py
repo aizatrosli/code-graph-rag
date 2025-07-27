@@ -11,22 +11,22 @@ load_dotenv()
 
 @dataclass
 class CodebaseConfig:
-    MEMGRAPH_HOST: str = field(default_factory=lambda: os.environ.get("MEMGRAPH_HOST", "localhost"))
-    MEMGRAPH_PORT: int = field(default_factory=lambda: int(os.environ.get("MEMGRAPH_PORT", "7687")))
-    MEMGRAPH_HTTP_PORT: int = field(default_factory=lambda: int(os.environ.get("MEMGRAPH_HTTP_PORT", "7444")))
-    LAB_PORT: int = field(default_factory=lambda: int(os.environ.get("LAB_PORT", "3000")))
+    MEMGRAPH_HOST: str | None = None
+    MEMGRAPH_PORT: int | None = None
+    MEMGRAPH_HTTP_PORT: int | None = None
+    LAB_PORT: int | None = None
 
     # Azure OpenAI Configuration
-    CODEBASE_PROVIDER: str | None = field(default_factory=lambda: os.environ.get("CODEBASE_PROVIDER", "azure"))
-    CODEBASE_API_KEY: str | None = field(default_factory=lambda: os.environ.get("CODEBASE_API_KEY"))
-    CODEBASE_ENDPOINT: str | None = field(default_factory=lambda: os.environ.get("CODEBASE_ENDPOINT"))
-    CODEBASE_API_VERSION: str = field(default_factory=lambda: os.environ.get("CODEBASE_API_VERSION", "2024-02-01"))
-    CODEBASE_ORCHESTRATOR_DEPLOYMENT: str = field(default_factory=lambda: os.environ.get("CODEBASE_ORCHESTRATOR_DEPLOYMENT", "gpt-4o-mini"))
-    CODEBASE_CYPHER_DEPLOYMENT: str = field(default_factory=lambda: os.environ.get("CODEBASE_CYPHER_DEPLOYMENT", "gpt-35-turbo"))
+    CODEBASE_PROVIDER: str | None = None
+    CODEBASE_API_KEY: str | None = None
+    CODEBASE_ENDPOINT: str | None = None
+    CODEBASE_API_VERSION: str | None = None
+    CODEBASE_ORCHESTRATOR_DEPLOYMENT: str | None = None
+    CODEBASE_CYPHER_DEPLOYMENT: str | None = None
 
-    TARGET_REPO_PATH: str = field(default_factory=lambda: os.environ.get("TARGET_REPO_PATH", "."))
-    SHELL_COMMAND_TIMEOUT: int = field(default_factory=lambda: int(os.environ.get("SHELL_COMMAND_TIMEOUT", "30")))
-    RECURSION_LIMIT: int = field(default_factory=lambda: int(os.environ.get("RECURSION_LIMIT", "20")))
+    TARGET_REPO_PATH: str | None = None
+    SHELL_COMMAND_TIMEOUT: int | None = None
+    RECURSION_LIMIT: int | None = None
 
     LANGFUSE_HOST: str = field(default_factory=lambda: os.environ.get("LANGFUSE_HOST", "http://"))
     LANGFUSE_PUBLIC_KEY: str = field(default_factory=lambda: os.environ.get("LANGFUSE_PUBLIC_KEY", ""))
@@ -36,6 +36,20 @@ class CodebaseConfig:
     ACTIVE_ORCHESTRATOR_MODEL: BaseLLM | None = None
     ACTIVE_CYPHER_MODEL: BaseLLM | None = None
     def __post_init__(self):
+        self.MEMGRAPH_HOST = os.environ.get("MEMGRAPH_HOST", "localhost") if self.MEMGRAPH_HOST is None else self.MEMGRAPH_HOST
+        self.MEMGRAPH_PORT = int(os.environ.get("MEMGRAPH_PORT", 7687)) if self.MEMGRAPH_PORT is None else self.MEMGRAPH_PORT
+        self.MEMGRAPH_HTTP_PORT = int(os.environ.get("MEMGRAPH_HTTP_PORT", 7444)) if self.MEMGRAPH_HTTP_PORT is None else self.MEMGRAPH_HTTP_PORT
+        self.LAB_PORT = int(os.environ.get("LAB_PORT", 3000)) if self.LAB_PORT is None else self.LAB_PORT
+        self.CODEBASE_PROVIDER = os.environ.get("CODEBASE_PROVIDER", "azure") if self.CODEBASE_PROVIDER is None else self.CODEBASE_PROVIDER
+        self.CODEBASE_API_KEY = os.environ.get("CODEBASE_API_KEY") if self.CODEBASE_API_KEY is None else self.CODEBASE_API_KEY
+        self.CODEBASE_ENDPOINT = os.environ.get("CODEBASE_ENDPOINT") if self.CODEBASE_ENDPOINT is None else self.CODEBASE_ENDPOINT
+        self.CODEBASE_API_VERSION = os.environ.get("CODEBASE_API_VERSION", "2024-02-01") if self.CODEBASE_API_VERSION is None else self.CODEBASE_API_VERSION
+        self.CODEBASE_ORCHESTRATOR_DEPLOYMENT = os.environ.get("CODEBASE_ORCHESTRATOR_DEPLOYMENT", "gpt-4o-mini") if self.CODEBASE_ORCHESTRATOR_DEPLOYMENT is None else self.CODEBASE_ORCHESTRATOR_DEPLOYMENT
+        self.CODEBASE_CYPHER_DEPLOYMENT = os.environ.get("CODEBASE_CYPHER_DEPLOYMENT", "gpt-35-turbo") if self.CODEBASE_CYPHER_DEPLOYMENT is None else self.CODEBASE_CYPHER_DEPLOYMENT
+        self.TARGET_REPO_PATH = os.environ.get("TARGET_REPO_PATH", ".") if self.TARGET_REPO_PATH is None else self.TARGET_REPO_PATH
+        self.SHELL_COMMAND_TIMEOUT = int(os.environ.get("SHELL_COMMAND_TIMEOUT", "30")) if self.SHELL_COMMAND_TIMEOUT is None else self.SHELL_COMMAND_TIMEOUT
+        self.RECURSION_LIMIT = int(os.environ.get("RECURSION_LIMIT", "20")) if self.RECURSION_LIMIT is None else self.RECURSION_LIMIT
+    
         if self.CODEBASE_PROVIDER == "azure":
             # Extract deployment name from model ID (azure-deployment-name format)
             headers = {'Ocp-Apim-Subscription-Key': self.CODEBASE_API_KEY}
@@ -66,7 +80,6 @@ class CodebaseConfig:
                 base_url=self.CODEBASE_ENDPOINT,
                 temperature=0.0,
             )
-
 
 # --- Global Ignore Patterns ---
 # Directories and files to ignore during codebase scanning and real-time updates.

@@ -1,6 +1,6 @@
 [project]
 name = "graph-code"
-version = "0.0.2"
+version = "0.0.2a0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -24,7 +24,7 @@ dependencies = [
     "diff-match-patch>=20241021",
     "click>=8.0.0",
     "langfuse",
-    "yeke",
+    "yake",
 ]
 
 [tool.setuptools]
