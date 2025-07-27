@@ -670,7 +670,7 @@ def _initialize_services_and_agent(settings: CodebaseConfig, ingestor: MemgraphI
 async def main_async(settings: CodebaseConfig) -> None:
     """Initializes services and runs the main application loop."""
     project_root = _setup_common_initialization(settings.TARGET_REPO_PATH)
-    table = _create_configuration_table(settings.TARGET_REPO_PATH)
+    table = _create_configuration_table(settings)
     console.print(table)
 
     with MemgraphIngestor( host=settings.MEMGRAPH_HOST, port=settings.MEMGRAPH_PORT) as ingestor:
@@ -725,11 +725,16 @@ def start(
     # Set confirmation mode based on flag
     confirm_edits_globally = not no_confirm
 
-    settings = CodebaseConfig(
-        TARGET_REPO_PATH=repo_path,
-        CODEBASE_ORCHESTRATOR_DEPLOYMENT=orchestrator_model,
-        CODEBASE_CYPHER_DEPLOYMENT=cypher_model,
-    )
+    # Create settings with optional overrides
+    config_kwargs = {}
+    if repo_path:
+        config_kwargs["TARGET_REPO_PATH"] = repo_path
+    if orchestrator_model:
+        config_kwargs["CODEBASE_ORCHESTRATOR_DEPLOYMENT"] = orchestrator_model
+    if cypher_model:
+        config_kwargs["CODEBASE_CYPHER_DEPLOYMENT"] = cypher_model
+    
+    settings = CodebaseConfig(**config_kwargs)
 
 
     # Validate output option usage
@@ -856,11 +861,16 @@ def optimize(
     # Set confirmation mode based on flag
     confirm_edits_globally = not no_confirm
 
-    settings = CodebaseConfig(
-        TARGET_REPO_PATH=repo_path,
-        CODEBASE_ORCHESTRATOR_DEPLOYMENT=orchestrator_model,
-        CODEBASE_CYPHER_DEPLOYMENT=cypher_model,
-    )
+    # Create settings with optional overrides
+    config_kwargs = {}
+    if repo_path:
+        config_kwargs["TARGET_REPO_PATH"] = repo_path
+    if orchestrator_model:
+        config_kwargs["CODEBASE_ORCHESTRATOR_DEPLOYMENT"] = orchestrator_model
+    if cypher_model:
+        config_kwargs["CODEBASE_CYPHER_DEPLOYMENT"] = cypher_model
+    
+    settings = CodebaseConfig(**config_kwargs)
 
     try:
         asyncio.run(

@@ -13,14 +13,14 @@ from langfuse.langchain import CallbackHandler
 from langfuse import Langfuse, get_client
 
 from .services.llm_langgraph import get_orchestrator_system_prompt
-from .config import CodebaseSettings
+from .config import CodebaseConfig
 
 class RAGState(MessagesState):
     """State for the RAG workflow."""
     user_request: str = ""
 
 
-def create_rag_workflow(tools: List[Any], settings: CodebaseSettings) -> StateGraph:
+def create_rag_workflow(tools: List[Any], settings: CodebaseConfig) -> StateGraph:
     """Create the LangGraph workflow for RAG orchestration."""
     
     # Get the LLM and bind tools to it
@@ -98,7 +98,7 @@ class Response:
 class RAGOrchestrator:
     """LangGraph-based RAG orchestrator."""
     
-    def __init__(self, tools: List[Any], settings: CodebaseSettings):
+    def __init__(self, tools: List[Any], settings: CodebaseConfig):
         self.workflow = create_rag_workflow(tools, settings)
         self.app = self.workflow.compile()
         logger.info("RAG orchestrator initialized with LangGraph")

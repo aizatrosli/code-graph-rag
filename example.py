@@ -74,7 +74,7 @@ class CodeGraphRAG:
             raise RuntimeError("Database connection not established. Use as context manager.")
         
         # Initialize services
-        cypher_generator = CypherGenerator(self.settings.ACTIVE_CYPHER_MODEL)
+        cypher_generator = CypherGenerator(llm=self.settings.ACTIVE_CYPHER_MODEL)
         code_retriever = CodeRetriever(project_root=str(self.repo_path), ingestor=self.ingestor)
         file_reader = FileReader(project_root=str(self.repo_path))
         file_writer = FileWriter(project_root=str(self.repo_path))

@@ -11,27 +11,27 @@ load_dotenv()
 
 @dataclass
 class CodebaseConfig:
-    MEMGRAPH_HOST: str = os.environ.get("MEMGRAPH_HOST", "localhost")
-    MEMGRAPH_PORT: int = os.environ.get("MEMGRAPH_PORT", 7687)
-    MEMGRAPH_HTTP_PORT: int = os.environ.get("MEMGRAPH_HTTP_PORT", 7444)
-    LAB_PORT: int = os.environ.get("LAB_PORT", 3000)
+    MEMGRAPH_HOST: str = field(default_factory=lambda: os.environ.get("MEMGRAPH_HOST", "localhost"))
+    MEMGRAPH_PORT: int = field(default_factory=lambda: int(os.environ.get("MEMGRAPH_PORT", "7687")))
+    MEMGRAPH_HTTP_PORT: int = field(default_factory=lambda: int(os.environ.get("MEMGRAPH_HTTP_PORT", "7444")))
+    LAB_PORT: int = field(default_factory=lambda: int(os.environ.get("LAB_PORT", "3000")))
 
     # Azure OpenAI Configuration
-    CODEBASE_PROVIDER: str | None = os.environ.get("CODEBASE_PROVIDER", "azure")
-    CODEBASE_API_KEY: str | None = os.environ.get("CODEBASE_API_KEY")
-    CODEBASE_ENDPOINT: str | None = os.environ.get("CODEBASE_ENDPOINT")
-    CODEBASE_API_VERSION: str = os.environ.get("CODEBASE_API_VERSION", "2024-02-01")
-    CODEBASE_ORCHESTRATOR_DEPLOYMENT: str = os.environ.get("CODEBASE_ORCHESTRATOR_DEPLOYMENT", "gpt-4o-mini")
-    CODEBASE_CYPHER_DEPLOYMENT: str = os.environ.get("CODEBASE_CYPHER_DEPLOYMENT", "gpt-35-turbo")
+    CODEBASE_PROVIDER: str | None = field(default_factory=lambda: os.environ.get("CODEBASE_PROVIDER", "azure"))
+    CODEBASE_API_KEY: str | None = field(default_factory=lambda: os.environ.get("CODEBASE_API_KEY"))
+    CODEBASE_ENDPOINT: str | None = field(default_factory=lambda: os.environ.get("CODEBASE_ENDPOINT"))
+    CODEBASE_API_VERSION: str = field(default_factory=lambda: os.environ.get("CODEBASE_API_VERSION", "2024-02-01"))
+    CODEBASE_ORCHESTRATOR_DEPLOYMENT: str = field(default_factory=lambda: os.environ.get("CODEBASE_ORCHESTRATOR_DEPLOYMENT", "gpt-4o-mini"))
+    CODEBASE_CYPHER_DEPLOYMENT: str = field(default_factory=lambda: os.environ.get("CODEBASE_CYPHER_DEPLOYMENT", "gpt-35-turbo"))
 
-    TARGET_REPO_PATH: str = os.environ.get("TARGET_REPO_PATH", ".")
-    SHELL_COMMAND_TIMEOUT: int = os.environ.get("SHELL_COMMAND_TIMEOUT", 30)
-    RECURSION_LIMIT: int = os.environ.get("RECURSION_LIMIT", 20)
+    TARGET_REPO_PATH: str = field(default_factory=lambda: os.environ.get("TARGET_REPO_PATH", "."))
+    SHELL_COMMAND_TIMEOUT: int = field(default_factory=lambda: int(os.environ.get("SHELL_COMMAND_TIMEOUT", "30")))
+    RECURSION_LIMIT: int = field(default_factory=lambda: int(os.environ.get("RECURSION_LIMIT", "20")))
 
-    LANGFUSE_HOST: str = os.environ.get("LANGFUSE_HOST", "http://")
-    LANGFUSE_PUBLIC_KEY: str = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
-    LANGFUSE_SECRET_KEY: str = os.environ.get("LANGFUSE_SECRET_KEY", "")
-    LANGFUSE_PROJECT: str = os.environ.get("LANGFUSE_PROJECT", "CodeRAG")
+    LANGFUSE_HOST: str = field(default_factory=lambda: os.environ.get("LANGFUSE_HOST", "http://"))
+    LANGFUSE_PUBLIC_KEY: str = field(default_factory=lambda: os.environ.get("LANGFUSE_PUBLIC_KEY", ""))
+    LANGFUSE_SECRET_KEY: str = field(default_factory=lambda: os.environ.get("LANGFUSE_SECRET_KEY", ""))
+    LANGFUSE_PROJECT: str = field(default_factory=lambda: os.environ.get("LANGFUSE_PROJECT", "CodeRAG"))
 
     ACTIVE_ORCHESTRATOR_MODEL: BaseLLM | None = None
     ACTIVE_CYPHER_MODEL: BaseLLM | None = None
