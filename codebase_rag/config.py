@@ -81,7 +81,6 @@ class CodebaseConfig:
                 temperature=0.0,
             )
 
-
 # --- Global Ignore Patterns ---
 # Directories and files to ignore during codebase scanning and real-time updates.
 IGNORE_PATTERNS = {
